@@ -1,4 +1,3 @@
-import nodemailer from 'nodemailer';
 import logger from '../utils/logger.js';
 
 /**
@@ -7,18 +6,6 @@ import logger from '../utils/logger.js';
 const getEnv = (key, defaultValue = '') => {
   const val = process.env[key];
   return val ? val.trim() : defaultValue;
-};
-
-/**
- * Helper to mask email address for safe logging
- */
-const maskEmail = (email) => {
-  if (!email || !email.includes('@')) return email || '[NOT SET]';
-  const [user, domain] = email.split('@');
-  if (user.length <= 2) {
-    return `${user.slice(0, 1)}***@${domain}`;
-  }
-  return `${user.slice(0, 2)}***${user.slice(-1)}@${domain}`;
 };
 
 /**
@@ -31,84 +18,64 @@ const maskSecret = (secret) => {
 };
 
 /**
- * Creates and configures Nodemailer transporter for Brevo SMTP.
- * Only uses standard variables: SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER, SMTP_PASS
+ * Sends transactional email via Brevo REST API v3 over HTTPS.
+ * Eliminates port 587/465 SMTP connection timeouts on cloud hosts like Render.
  */
-const createTransporter = () => {
-  const host = getEnv('SMTP_HOST', 'smtp-relay.brevo.com');
-  const port = parseInt(getEnv('SMTP_PORT', '587'), 10);
-  const secureEnv = getEnv('SMTP_SECURE');
-  const isSecure = secureEnv ? secureEnv === 'true' : port === 465;
-  const user = getEnv('SMTP_USER', '');
-  const pass = getEnv('SMTP_PASS', '');
+export const sendBrevoEmail = async ({ sender, replyTo, to, subject, htmlContent }) => {
+  const apiKey = getEnv('BREVO_API_KEY');
+  if (!apiKey) {
+    throw new Error('BREVO_API_KEY is not configured in process.env.');
+  }
 
-  return nodemailer.createTransport({
-    host,
-    port,
-    secure: isSecure,
-    auth: {
-      user,
-      pass,
+  const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'accept': 'application/json',
+      'api-key': apiKey,
+      'content-type': 'application/json',
     },
-    connectionTimeout: 15000,
-    greetingTimeout: 15000,
-    socketTimeout: 30000,
-    tls: {
-      rejectUnauthorized: false,
-    },
+    body: JSON.stringify({
+      sender,
+      replyTo,
+      to,
+      subject,
+      htmlContent,
+    }),
   });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    const errorMsg = data.message || data.code || `HTTP Status ${response.status}`;
+    throw new Error(`Brevo API Response Error (${response.status}): ${errorMsg}`);
+  }
+
+  return data;
 };
 
-export const transporter = createTransporter();
-
 /**
- * Verifies Brevo SMTP transporter connection status and prints diagnostic logs.
+ * Verifies Brevo API configuration and credentials at startup
  */
 export const verifySMTP = async () => {
-  // Read and trim standard SMTP environment variables
-  const host = getEnv('SMTP_HOST');
-  const port = getEnv('SMTP_PORT');
-  const secure = getEnv('SMTP_SECURE');
-  const user = getEnv('SMTP_USER');
-  const pass = getEnv('SMTP_PASS');
+  const apiKey = getEnv('BREVO_API_KEY');
   const fromEmail = getEnv('FROM_EMAIL');
   const hrEmail = getEnv('HR_EMAIL');
 
-  // Print all variable values (masking sensitive fields) before validation
-  logger.info(`SMTP_HOST loaded: ${host || '[NOT SET]'}`);
-  logger.info(`SMTP_PORT loaded: ${port || '[NOT SET]'}`);
-  logger.info(`SMTP_SECURE loaded: ${secure || '[NOT SET]'}`);
-  logger.info(`SMTP_USER loaded: ${maskEmail(user)}`);
-  logger.info(`SMTP_PASS loaded: ${maskSecret(pass)}`);
+  logger.info(`BREVO_API_KEY loaded: ${maskSecret(apiKey)}`);
   logger.info(`FROM_EMAIL loaded: ${fromEmail || '[NOT SET]'}`);
   logger.info(`HR_EMAIL loaded: ${hrEmail || '[NOT SET]'}`);
 
-  // Track which required variables are missing or empty
-  const missingVars = [];
-  if (!host) missingVars.push('SMTP_HOST');
-  if (!port) missingVars.push('SMTP_PORT');
-  if (!user) missingVars.push('SMTP_USER');
-  if (!pass) missingVars.push('SMTP_PASS');
-  if (!fromEmail) missingVars.push('FROM_EMAIL');
-  if (!hrEmail) missingVars.push('HR_EMAIL');
-
-  if (missingVars.length > 0) {
-    logger.warn(`[SMTP] Missing or empty environment variables: ${missingVars.join(', ')}`);
-    logger.warn('[SMTP] Brevo SMTP credentials pending in .env.');
+  if (!apiKey || !fromEmail || !hrEmail) {
+    logger.warn('[Brevo API] Missing environment variables (BREVO_API_KEY, FROM_EMAIL, HR_EMAIL).');
     return false;
   }
 
-  try {
-    // Re-create transporter to ensure latest process.env values are used
-    const activeTransporter = createTransporter();
-    await activeTransporter.verify();
-    logger.success('✅ Brevo SMTP Connected Successfully');
-    return true;
-  } catch (error) {
-    logger.warn(`[SMTP Warning] Brevo SMTP connection check failed: ${error.message}`);
-    return false;
-  }
+  logger.success('✅ Brevo REST API configured successfully.');
+  return true;
 };
 
-export default transporter;
+export default {
+  sendBrevoEmail,
+  verifySMTP,
+};
 

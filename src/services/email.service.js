@@ -1,18 +1,17 @@
-import transporter from '../config/smtp.js';
+import { sendBrevoEmail } from '../config/smtp.js';
 import logger from '../utils/logger.js';
 
 /**
- * Parses and validates HR email recipients from environment configuration.
- * Reads HR_EMAIL strictly from process.env, splits comma-separated emails,
+ * Parses and validates HR email recipients from process.env.HR_EMAIL.
+ * Reads HR_EMAIL from process.env, splits comma-separated emails,
  * trims whitespace, removes empty entries, and eliminates duplicate addresses.
- * Throws an error if no valid recipient exists in process.env.HR_EMAIL.
- * @returns {string[]} Array of unique, cleaned HR recipient email addresses
+ * Converts recipients to Brevo API payload format [{ email: '...' }].
+ * @returns {Array<{email: string}>} Array of Brevo recipient objects
  */
 const getHrRecipients = () => {
-  const rawEmails = process.env.HR_EMAIL || '';
+  const rawEmails = process.env.HR_EMAIL || 'jmsplacement@gmail.com,suhaniyadav1402@gmail.com';
 
-  // Split by comma, trim whitespace, filter empty values, and remove duplicates using Set
-  const hrRecipients = Array.from(
+  const uniqueEmails = Array.from(
     new Set(
       rawEmails
         .split(',')
@@ -21,37 +20,42 @@ const getHrRecipients = () => {
     )
   );
 
-  // Throw clear error if no valid HR email exists
-  if (hrRecipients.length === 0) {
+  if (uniqueEmails.length === 0) {
     throw new Error('No valid HR email recipient configured in process.env.HR_EMAIL.');
   }
 
-  return hrRecipients;
+  return uniqueEmails.map((email) => ({ email }));
 };
 
 /**
- * Sends notification email for new contact form submissions.
+ * Sends notification email for new contact form submissions via Brevo API.
  * @param {Object} contactData - Saved contact object
  */
 export const sendContactNotificationEmail = async (contactData) => {
   try {
-    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-      logger.info('[Email Service] Skipping notification email: Brevo SMTP credentials not configured yet.');
+    const apiKey = process.env.BREVO_API_KEY;
+    if (!apiKey) {
+      logger.info('[Email Service] Skipping notification email: BREVO_API_KEY not configured.');
       return;
     }
 
-    // Parse and validate HR recipients (supports multiple comma-separated emails)
     const hrRecipients = getHrRecipients();
+    const fromEmail = process.env.FROM_EMAIL || 'jmsplacement@gmail.com';
 
-    // Log recipient list before sending
-    logger.info(`Sending HR notification to:\n${hrRecipients.map((email) => `- ${email}`).join('\n')}`);
+    logger.info(`Sending HR notification to:\n${hrRecipients.map((r) => `- ${r.email}`).join('\n')}`);
 
-    const mailOptions = {
-      from: `"${contactData.fullName}" <${process.env.FROM_EMAIL || process.env.SMTP_USER}>`,
-      replyTo: contactData.email,
+    const result = await sendBrevoEmail({
+      sender: {
+        name: contactData.fullName || 'JMS Group Website',
+        email: fromEmail,
+      },
+      replyTo: {
+        name: contactData.fullName,
+        email: contactData.email,
+      },
       to: hrRecipients,
       subject: `New Contact Inquiry: ${contactData.subject}`,
-      html: `
+      htmlContent: `
         <h3>New Contact Submission Received</h3>
         <p><strong>Full Name:</strong> ${contactData.fullName}</p>
         <p><strong>Email:</strong> ${contactData.email}</p>
@@ -60,39 +64,44 @@ export const sendContactNotificationEmail = async (contactData) => {
         <p><strong>Message:</strong></p>
         <p>${contactData.message}</p>
       `,
-    };
+    });
 
-    const info = await transporter.sendMail(mailOptions);
-    logger.success(`[Email Service] Contact notification email sent: ${info.messageId}`);
-    return info;
+    logger.success(`[Email Service] Contact notification sent via Brevo API: ${result.messageId || 'Success'}`);
+    return result;
   } catch (error) {
     logger.error(`[Email Service Error] Contact notification failed: ${error.message}`);
   }
 };
 
 /**
- * Sends notification email for new candidate resume submissions.
+ * Sends notification email for new candidate resume submissions via Brevo API.
  * @param {Object} resumeData - Saved resume object with Cloudinary URL
  */
 export const sendResumeNotificationEmail = async (resumeData) => {
   try {
-    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-      logger.info('[Email Service] Skipping notification email: Brevo SMTP credentials not configured yet.');
+    const apiKey = process.env.BREVO_API_KEY;
+    if (!apiKey) {
+      logger.info('[Email Service] Skipping notification email: BREVO_API_KEY not configured.');
       return;
     }
 
-    // Parse and validate HR recipients (supports multiple comma-separated emails)
     const hrRecipients = getHrRecipients();
+    const fromEmail = process.env.FROM_EMAIL || 'jmsplacement@gmail.com';
 
-    // Log recipient list before sending
-    logger.info(`Sending HR notification to:\n${hrRecipients.map((email) => `- ${email}`).join('\n')}`);
+    logger.info(`Sending HR notification to:\n${hrRecipients.map((r) => `- ${r.email}`).join('\n')}`);
 
-    const mailOptions = {
-      from: `"JMS Group Careers" <${process.env.FROM_EMAIL || process.env.SMTP_USER}>`,
-      replyTo: resumeData.email,
+    const result = await sendBrevoEmail({
+      sender: {
+        name: 'JMS Group Careers',
+        email: fromEmail,
+      },
+      replyTo: {
+        name: resumeData.fullName,
+        email: resumeData.email,
+      },
       to: hrRecipients,
       subject: `New Candidate Resume: ${resumeData.fullName} (${resumeData.preferredJobRole})`,
-      html: `
+      htmlContent: `
         <h3>New Candidate Resume Application</h3>
         <p><strong>Candidate Name:</strong> ${resumeData.fullName}</p>
         <p><strong>Email:</strong> ${resumeData.email}</p>
@@ -102,11 +111,10 @@ export const sendResumeNotificationEmail = async (resumeData) => {
         <p><strong>Preferred Role:</strong> ${resumeData.preferredJobRole}</p>
         <p><strong>Resume Document:</strong> <a href="${resumeData.resumeUrl}">${resumeData.originalFileName}</a></p>
       `,
-    };
+    });
 
-    const info = await transporter.sendMail(mailOptions);
-    logger.success(`[Email Service] Resume notification email sent: ${info.messageId}`);
-    return info;
+    logger.success(`[Email Service] Resume notification sent via Brevo API: ${result.messageId || 'Success'}`);
+    return result;
   } catch (error) {
     logger.error(`[Email Service Error] Resume notification failed: ${error.message}`);
   }
