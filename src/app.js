@@ -12,6 +12,9 @@ import resumeRoutes from './routes/resume.routes.js';
 
 const app = express();
 
+// Trust reverse proxy headers on Render/Vercel for express-rate-limit
+app.set('trust proxy', 1);
+
 // Disable X-Powered-By Header for security
 app.disable('x-powered-by');
 
