@@ -21,17 +21,35 @@ app.use(helmet());
 // Compression Middleware
 app.use(compression());
 
-// CORS Configuration supporting multiple origins from CLIENT_URL
-const allowedOrigins = process.env.CLIENT_URL
-  ? process.env.CLIENT_URL.split(',').map((origin) => origin.trim())
-  : ['http://localhost:3000', 'http://localhost:5173'];
+// CORS Configuration supporting Vercel frontend, localhost, and env origins
+const defaultOrigins = [
+  'https://jms-group-fronthend.vercel.app',
+  'http://localhost:5173',
+  'http://localhost:3000',
+];
 
-app.use(
-  cors({
-    origin: allowedOrigins,
-    credentials: true,
-  })
-);
+const envOrigins = process.env.CLIENT_URL
+  ? process.env.CLIENT_URL.split(',').map((origin) => origin.trim().replace(/\/$/, ''))
+  : [];
+
+const allowedOrigins = Array.from(new Set([...defaultOrigins, ...envOrigins]));
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    const cleanOrigin = origin.trim().replace(/\/$/, '');
+    if (allowedOrigins.includes(cleanOrigin)) {
+      return callback(null, true);
+    }
+    return callback(new Error(`CORS policy error: Origin ${origin} not allowed`));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  optionsSuccessStatus: 200,
+};
+
+app.use(cors(corsOptions));
 
 // Request Logger
 if (process.env.NODE_ENV === 'development') {

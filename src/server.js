@@ -38,8 +38,10 @@ const startServer = async () => {
     // 2. Verify Cloudinary Configuration
     await verifyCloudinary();
 
-    // 3. Verify Brevo SMTP Transporter Configuration
-    await verifySMTP();
+    // 3. Verify Brevo SMTP Transporter Configuration asynchronously (non-blocking)
+    verifySMTP().catch((err) => {
+      logger.warn(`[SMTP Warning] Brevo SMTP connection check failed: ${err.message}`);
+    });
 
     // 4. Start Express HTTP Server
     const server = app.listen(PORT, () => {
