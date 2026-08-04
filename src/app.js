@@ -24,16 +24,28 @@ app.use(helmet());
 // Compression Middleware
 app.use(compression());
 
-// CORS Configuration supporting Vercel frontend, localhost, and env origins
+// CORS Configuration supporting production domains, Vercel frontend, localhost, and env origins
 const defaultOrigins = [
+  'https://www.jmsgroups.com',
+  'https://jmsgroups.com',
   'https://jms-group-fronthend.vercel.app',
-  'http://localhost:5173',
   'http://localhost:3000',
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
 ];
 
-const envOrigins = process.env.CLIENT_URL
-  ? process.env.CLIENT_URL.split(',').map((origin) => origin.trim().replace(/\/$/, ''))
-  : [];
+const parseOrigins = (envVar) => {
+  if (!envVar) return [];
+  return envVar
+    .split(',')
+    .map((origin) => origin.trim().replace(/\/$/, ''))
+    .filter(Boolean);
+};
+
+const envOrigins = [
+  ...parseOrigins(process.env.CLIENT_URL),
+  ...parseOrigins(process.env.ALLOWED_ORIGINS),
+];
 
 const allowedOrigins = Array.from(new Set([...defaultOrigins, ...envOrigins]));
 
@@ -44,7 +56,7 @@ const corsOptions = {
     if (allowedOrigins.includes(cleanOrigin)) {
       return callback(null, true);
     }
-    return callback(new Error(`CORS policy error: Origin ${origin} not allowed`));
+    return callback(null, false);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
