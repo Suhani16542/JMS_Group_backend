@@ -62,7 +62,7 @@ export const uploadToCloudinary = (fileBuffer, originalName) => {
 
       const ext = path.extname(originalName).toLowerCase();
       const baseName = path.basename(originalName, ext).replace(/[^a-zA-Z0-9]/g, '_');
-      const uniquePublicId = `${baseName}_${Date.now()}`;
+      const uniquePublicId = `${baseName}_${Date.now()}${ext}`;
 
       const uploadStream = cloudinary.uploader.upload_stream(
         {
@@ -113,6 +113,26 @@ export const deleteFromCloudinary = async (publicId) => {
     logger.error(`[Cloudinary Deletion Error] ${error.message}`);
     throw new ApiError(500, `Cloudinary file deletion failed: ${error.message}`);
   }
+};
+
+/**
+ * Generates an authenticated signed download URL for raw Cloudinary assets.
+ * Ensures PDF/DOC/DOCX files download cleanly without 401 restrictions.
+ *
+ * @param {string} publicId - Cloudinary public ID
+ * @returns {string} Signed download URL
+ */
+export const getCloudinaryDownloadUrl = (publicId, attachment = false) => {
+  if (!publicId) return null;
+  configureCloudinary();
+  const options = {
+    resource_type: 'raw',
+    type: 'upload',
+  };
+  if (attachment) {
+    options.attachment = true;
+  }
+  return cloudinary.utils.private_download_url(publicId, null, options);
 };
 
 export default cloudinary;

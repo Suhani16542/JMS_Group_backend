@@ -64,16 +64,17 @@ export const deleteResume = asyncHandler(async (req, res) => {
 });
 
 /**
- * @desc    Download/Redirect to Cloudinary secure_url for a resume file
+ * @desc    Download/Preview resume file by ID (Redirects directly to Cloudinary)
  * @route   GET /api/resume/download/:id
  * @access  Private/Admin
  */
 export const downloadResume = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { resumeUrl } = await downloadResumeService(id);
+  const { mode } = req.query; // 'view' or 'download'
+  const { downloadUrl } = await downloadResumeService(id, mode);
 
-  // Redirect client directly to the Cloudinary asset URL
-  return res.redirect(resumeUrl);
+  // Redirect client directly to the Cloudinary URL
+  return res.redirect(downloadUrl);
 });
 
 export default {

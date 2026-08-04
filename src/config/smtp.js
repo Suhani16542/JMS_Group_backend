@@ -21,10 +21,22 @@ const maskSecret = (secret) => {
  * Sends transactional email via Brevo REST API v3 over HTTPS.
  * Eliminates port 587/465 SMTP connection timeouts on cloud hosts like Render.
  */
-export const sendBrevoEmail = async ({ sender, replyTo, to, subject, htmlContent }) => {
+export const sendBrevoEmail = async ({ sender, replyTo, to, subject, htmlContent, attachment }) => {
   const apiKey = getEnv('BREVO_API_KEY');
   if (!apiKey) {
     throw new Error('BREVO_API_KEY is not configured in process.env.');
+  }
+
+  const payload = {
+    sender,
+    replyTo,
+    to,
+    subject,
+    htmlContent,
+  };
+
+  if (attachment && Array.isArray(attachment) && attachment.length > 0) {
+    payload.attachment = attachment;
   }
 
   const response = await fetch('https://api.brevo.com/v3/smtp/email', {
@@ -34,13 +46,7 @@ export const sendBrevoEmail = async ({ sender, replyTo, to, subject, htmlContent
       'api-key': apiKey,
       'content-type': 'application/json',
     },
-    body: JSON.stringify({
-      sender,
-      replyTo,
-      to,
-      subject,
-      htmlContent,
-    }),
+    body: JSON.stringify(payload),
   });
 
   const data = await response.json();

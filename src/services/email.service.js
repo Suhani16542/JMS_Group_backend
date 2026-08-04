@@ -1,4 +1,5 @@
 import { sendBrevoEmail } from '../config/smtp.js';
+import { getCloudinaryDownloadUrl } from '../config/cloudinary.js';
 import logger from '../utils/logger.js';
 
 /**
@@ -90,6 +91,10 @@ export const sendResumeNotificationEmail = async (resumeData) => {
 
     logger.info(`Sending HR notification to:\n${hrRecipients.map((r) => `- ${r.email}`).join('\n')}`);
 
+    const serverBaseUrl = process.env.SERVER_URL || process.env.BACKEND_URL || 'http://localhost:5000';
+    const viewUrl = `${serverBaseUrl}/api/resume/download/${resumeData._id}?mode=view`;
+    const downloadUrl = `${serverBaseUrl}/api/resume/download/${resumeData._id}?mode=download`;
+
     const result = await sendBrevoEmail({
       sender: {
         name: 'JMS Group Careers',
@@ -109,7 +114,12 @@ export const sendResumeNotificationEmail = async (resumeData) => {
         <p><strong>Qualification:</strong> ${resumeData.highestQualification}</p>
         <p><strong>Experience:</strong> ${resumeData.experience}</p>
         <p><strong>Preferred Role:</strong> ${resumeData.preferredJobRole}</p>
-        <p><strong>Resume Document:</strong> <a href="${resumeData.resumeUrl}">${resumeData.originalFileName}</a></p>
+        <p><strong>Original File Name:</strong> ${resumeData.originalFileName}</p>
+        <br />
+        <p>
+          <a href="${viewUrl}" target="_blank" style="background-color: #2563eb; color: #ffffff; padding: 10px 18px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block; margin-right: 10px;">View Resume</a>
+          <a href="${downloadUrl}" target="_blank" style="background-color: #059669; color: #ffffff; padding: 10px 18px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Download Resume</a>
+        </p>
       `,
     });
 

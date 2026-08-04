@@ -1,7 +1,21 @@
+import path from 'path';
 import Resume from '../models/Resume.js';
-import { uploadToCloudinary, deleteFromCloudinary } from '../config/cloudinary.js';
+import { uploadToCloudinary, deleteFromCloudinary, getCloudinaryDownloadUrl } from '../config/cloudinary.js';
 import ApiError from '../utils/ApiError.js';
 import { sendResumeNotificationEmail } from './email.service.js';
+
+/**
+ * Resolves standard canonical MIME type from file extension if needed.
+ */
+const getCanonicalMimeType = (originalName, mimetype) => {
+  const ext = path.extname(originalName).toLowerCase();
+  const mimeMap = {
+    '.pdf': 'application/pdf',
+    '.doc': 'application/msword',
+    '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  };
+  return mimeMap[ext] || mimetype || 'application/octet-stream';
+};
 
 /**
  * Resume Service Layer (Cloudinary Storage)
@@ -25,7 +39,7 @@ export const uploadResumeService = async (resumeData, file) => {
     resumeUrl: cloudinaryResult.secure_url,
     cloudinaryPublicId: cloudinaryResult.public_id,
     originalFileName: file.originalname,
-    mimeType: file.mimetype,
+    mimeType: getCanonicalMimeType(file.originalname, file.mimetype),
     fileSize: file.size,
   };
 
@@ -99,15 +113,20 @@ export const deleteResumeService = async (id) => {
 };
 
 /**
- * Gets Cloudinary download URL for a resume file.
+ * Gets Cloudinary download/view URL and metadata for a resume file.
  * @param {string} id - Resume ID
+ * @param {string} mode - 'view' or 'download'
  */
-export const downloadResumeService = async (id) => {
+export const downloadResumeService = async (id, mode = 'view') => {
   const resume = await Resume.findById(id);
   if (!resume || !resume.resumeUrl) {
     throw new ApiError(404, 'Resume file not found');
   }
-  return { resumeUrl: resume.resumeUrl };
+
+  const isDownload = mode === 'download';
+  const downloadUrl =
+    getCloudinaryDownloadUrl(resume.cloudinaryPublicId, isDownload) || resume.resumeUrl;
+  return { resume, downloadUrl };
 };
 
 export default {
