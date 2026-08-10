@@ -114,6 +114,8 @@ export const sendResumeNotificationEmail = async (resumeData) => {
         <p><strong>Qualification:</strong> ${resumeData.highestQualification}</p>
         <p><strong>Experience:</strong> ${resumeData.experience}</p>
         <p><strong>Preferred Role:</strong> ${resumeData.preferredJobRole}</p>
+        <p><strong>Reference Number:</strong> ${resumeData.referenceNumber}</p>
+        <p><strong>Reference Name:</strong> ${resumeData.referenceName}</p>
         <p><strong>Original File Name:</strong> ${resumeData.originalFileName}</p>
         <br />
         <p>

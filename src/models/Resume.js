@@ -38,6 +38,16 @@ const resumeSchema = new mongoose.Schema(
       required: [true, 'Preferred job role is required'],
       trim: true,
     },
+    referenceNumber: {
+      type: String,
+      required: [true, 'Reference number is required'],
+      trim: true,
+    },
+    referenceName: {
+      type: String,
+      required: [true, 'Reference name is required'],
+      trim: true,
+    },
     resumeUrl: {
       type: String,
       required: [true, 'Resume Cloudinary URL is required'],

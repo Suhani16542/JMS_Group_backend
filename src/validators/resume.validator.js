@@ -5,7 +5,7 @@ import { STATUS_ENUM } from '../constants/status.constants.js';
  * Validates request payload and uploaded file for resume submission.
  */
 export const validateUploadResume = (req, res, next) => {
-  const { fullName, email, phone, highestQualification, experience, preferredJobRole } = req.body;
+  const { fullName, email, phone, highestQualification, experience, preferredJobRole, referenceNumber, referenceName } = req.body;
   const errors = [];
 
   // Validate fullName
@@ -38,6 +38,16 @@ export const validateUploadResume = (req, res, next) => {
   // Validate preferredJobRole
   if (!preferredJobRole || typeof preferredJobRole !== 'string' || preferredJobRole.trim().length === 0) {
     errors.push('Preferred job role is required.');
+  }
+
+  // Validate referenceNumber
+  if (!referenceNumber || typeof referenceNumber !== 'string' || referenceNumber.trim().length === 0) {
+    errors.push('Reference number is required.');
+  }
+
+  // Validate referenceName
+  if (!referenceName || typeof referenceName !== 'string' || referenceName.trim().length === 0) {
+    errors.push('Reference name is required.');
   }
 
   // Validate uploaded file presence
