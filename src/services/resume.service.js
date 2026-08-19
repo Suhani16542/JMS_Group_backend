@@ -18,6 +18,24 @@ const getCanonicalMimeType = (originalName, mimetype) => {
 };
 
 /**
+ * Helper to attach working signed view & download URLs to resume documents.
+ * Ensures existing and new MongoDB records always return accessible HTTPS URLs.
+ */
+const enrichResumeWithSignedUrls = (resumeDoc) => {
+  if (!resumeDoc) return null;
+  const obj = resumeDoc.toObject ? resumeDoc.toObject() : { ...resumeDoc };
+  if (obj.cloudinaryPublicId) {
+    const signedView = getCloudinaryDownloadUrl(obj.cloudinaryPublicId, false);
+    const signedDownload = getCloudinaryDownloadUrl(obj.cloudinaryPublicId, true);
+    obj.viewUrl = signedView || obj.resumeUrl;
+    obj.downloadUrl = signedDownload || obj.resumeUrl;
+    // Overwrite resumeUrl with the working signed view URL
+    obj.resumeUrl = signedView || obj.resumeUrl;
+  }
+  return obj;
+};
+
+/**
  * Resume Service Layer (Cloudinary Storage)
  */
 
@@ -35,8 +53,10 @@ export const uploadResumeService = async (resumeData, file) => {
   // Upload memory buffer directly to Cloudinary folder (jms-group/resumes)
   const cloudinaryResult = await uploadToCloudinary(file.buffer, file.originalname);
 
+  const signedViewUrl = getCloudinaryDownloadUrl(cloudinaryResult.public_id, false);
+
   const fileMetadata = {
-    resumeUrl: cloudinaryResult.secure_url,
+    resumeUrl: signedViewUrl || cloudinaryResult.secure_url,
     cloudinaryPublicId: cloudinaryResult.public_id,
     originalFileName: file.originalname,
     mimeType: getCanonicalMimeType(file.originalname, file.mimetype),
@@ -51,7 +71,7 @@ export const uploadResumeService = async (resumeData, file) => {
   // Dispatch background email notification via Brevo SMTP (if configured)
   sendResumeNotificationEmail(newResume);
 
-  return newResume;
+  return enrichResumeWithSignedUrls(newResume);
 };
 
 /**
@@ -60,7 +80,7 @@ export const uploadResumeService = async (resumeData, file) => {
  */
 export const getAllResumesService = async (queryParams = {}) => {
   const resumes = await Resume.find(queryParams).sort({ createdAt: -1 });
-  return resumes;
+  return resumes.map(enrichResumeWithSignedUrls);
 };
 
 /**
@@ -72,7 +92,7 @@ export const getSingleResumeService = async (id) => {
   if (!resume) {
     throw new ApiError(404, 'Resume submission not found');
   }
-  return resume;
+  return enrichResumeWithSignedUrls(resume);
 };
 
 /**
@@ -90,7 +110,7 @@ export const updateResumeStatusService = async (id, status) => {
   if (!updatedResume) {
     throw new ApiError(404, 'Resume submission not found');
   }
-  return updatedResume;
+  return enrichResumeWithSignedUrls(updatedResume);
 };
 
 /**
@@ -119,7 +139,7 @@ export const deleteResumeService = async (id) => {
  */
 export const downloadResumeService = async (id, mode = 'view') => {
   const resume = await Resume.findById(id);
-  if (!resume || !resume.resumeUrl) {
+  if (!resume || (!resume.resumeUrl && !resume.cloudinaryPublicId)) {
     throw new ApiError(404, 'Resume file not found');
   }
 

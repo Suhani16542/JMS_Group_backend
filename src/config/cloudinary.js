@@ -116,22 +116,29 @@ export const deleteFromCloudinary = async (publicId) => {
 };
 
 /**
- * Generates an authenticated signed download URL for raw Cloudinary assets.
- * Ensures PDF/DOC/DOCX files download cleanly without 401 restrictions.
+ * Generates an authenticated signed download/view URL for raw Cloudinary assets.
+ * Ensures PDF/DOC/DOCX files view and download cleanly across all mobile & desktop browsers
+ * with HTTP 200 status and zero 401 restrictions.
  *
  * @param {string} publicId - Cloudinary public ID
- * @returns {string} Signed download URL
+ * @param {boolean} attachment - If true, forces download; if false, opens inline
+ * @returns {string} Signed HTTPS URL
  */
 export const getCloudinaryDownloadUrl = (publicId, attachment = false) => {
   if (!publicId) return null;
   configureCloudinary();
+
   const options = {
     resource_type: 'raw',
     type: 'upload',
+    // 5-year expiration for long-lived access
+    expires_at: Math.floor(Date.now() / 1000) + 5 * 365 * 24 * 60 * 60,
   };
+
   if (attachment) {
     options.attachment = true;
   }
+
   return cloudinary.utils.private_download_url(publicId, null, options);
 };
 

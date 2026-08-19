@@ -91,9 +91,17 @@ export const sendResumeNotificationEmail = async (resumeData) => {
 
     logger.info(`Sending HR notification to:\n${hrRecipients.map((r) => `- ${r.email}`).join('\n')}`);
 
-    const serverBaseUrl = process.env.SERVER_URL || process.env.BACKEND_URL || 'http://localhost:5000';
-    const viewUrl = `${serverBaseUrl}/api/resume/download/${resumeData._id}?mode=view`;
-    const downloadUrl = `${serverBaseUrl}/api/resume/download/${resumeData._id}?mode=download`;
+    // Generate direct, secure HTTPS signed URLs from Cloudinary
+    const signedViewUrl = resumeData.cloudinaryPublicId
+      ? getCloudinaryDownloadUrl(resumeData.cloudinaryPublicId, false)
+      : resumeData.resumeUrl;
+
+    const signedDownloadUrl = resumeData.cloudinaryPublicId
+      ? getCloudinaryDownloadUrl(resumeData.cloudinaryPublicId, true)
+      : resumeData.resumeUrl;
+
+    const viewUrl = signedViewUrl || resumeData.resumeUrl;
+    const downloadUrl = signedDownloadUrl || resumeData.resumeUrl;
 
     const result = await sendBrevoEmail({
       sender: {
@@ -107,21 +115,27 @@ export const sendResumeNotificationEmail = async (resumeData) => {
       to: hrRecipients,
       subject: `New Candidate Resume: ${resumeData.fullName} (${resumeData.preferredJobRole})`,
       htmlContent: `
-        <h3>New Candidate Resume Application</h3>
-        <p><strong>Candidate Name:</strong> ${resumeData.fullName}</p>
-        <p><strong>Email:</strong> ${resumeData.email}</p>
-        <p><strong>Phone:</strong> ${resumeData.phone}</p>
-        <p><strong>Qualification:</strong> ${resumeData.highestQualification}</p>
-        <p><strong>Experience:</strong> ${resumeData.experience}</p>
-        <p><strong>Preferred Role:</strong> ${resumeData.preferredJobRole}</p>
-        <p><strong>Reference Number:</strong> ${resumeData.referenceNumber}</p>
-        <p><strong>Reference Name:</strong> ${resumeData.referenceName}</p>
-        <p><strong>Original File Name:</strong> ${resumeData.originalFileName}</p>
-        <br />
-        <p>
-          <a href="${viewUrl}" target="_blank" style="background-color: #2563eb; color: #ffffff; padding: 10px 18px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block; margin-right: 10px;">View Resume</a>
-          <a href="${downloadUrl}" target="_blank" style="background-color: #059669; color: #ffffff; padding: 10px 18px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Download Resume</a>
-        </p>
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px; background-color: #ffffff;">
+          <h2 style="color: #1e3a8a; margin-top: 0; border-bottom: 2px solid #3b82f6; padding-bottom: 10px;">New Candidate Resume Application</h2>
+          <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+            <tr><td style="padding: 8px 0; font-weight: bold; color: #475569; width: 35%;">Candidate Name:</td><td style="padding: 8px 0; color: #0f172a;">${resumeData.fullName}</td></tr>
+            <tr><td style="padding: 8px 0; font-weight: bold; color: #475569;">Email:</td><td style="padding: 8px 0; color: #0f172a;"><a href="mailto:${resumeData.email}" style="color: #2563eb;">${resumeData.email}</a></td></tr>
+            <tr><td style="padding: 8px 0; font-weight: bold; color: #475569;">Phone:</td><td style="padding: 8px 0; color: #0f172a;"><a href="tel:${resumeData.phone}" style="color: #2563eb;">${resumeData.phone}</a></td></tr>
+            <tr><td style="padding: 8px 0; font-weight: bold; color: #475569;">Highest Qualification:</td><td style="padding: 8px 0; color: #0f172a;">${resumeData.highestQualification}</td></tr>
+            <tr><td style="padding: 8px 0; font-weight: bold; color: #475569;">Experience:</td><td style="padding: 8px 0; color: #0f172a;">${resumeData.experience}</td></tr>
+            <tr><td style="padding: 8px 0; font-weight: bold; color: #475569;">Preferred Role:</td><td style="padding: 8px 0; color: #0f172a; font-weight: 600; color: #1d4ed8;">${resumeData.preferredJobRole}</td></tr>
+            <tr><td style="padding: 8px 0; font-weight: bold; color: #475569;">Reference Number:</td><td style="padding: 8px 0; color: #0f172a;">${resumeData.referenceNumber}</td></tr>
+            <tr><td style="padding: 8px 0; font-weight: bold; color: #475569;">Reference Name:</td><td style="padding: 8px 0; color: #0f172a;">${resumeData.referenceName}</td></tr>
+            <tr><td style="padding: 8px 0; font-weight: bold; color: #475569;">Original File:</td><td style="padding: 8px 0; color: #0f172a;">${resumeData.originalFileName}</td></tr>
+          </table>
+          <div style="margin-top: 25px; padding-top: 20px; border-top: 1px solid #e2e8f0; text-align: center;">
+            <a href="${viewUrl}" target="_blank" style="background-color: #2563eb; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; margin-right: 12px; font-size: 14px;">View Resume</a>
+            <a href="${downloadUrl}" target="_blank" style="background-color: #059669; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 14px;">Download Resume</a>
+          </div>
+          <p style="margin-top: 20px; font-size: 12px; color: #94a3b8; text-align: center;">
+            This email was sent automatically by JMS Group Job Application System.
+          </p>
+        </div>
       `,
     });
 
