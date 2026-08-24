@@ -29,7 +29,7 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-// Multer Middleware Instance with 5MB limit
+// Multer Middleware Instance for Resume with 5MB limit
 export const uploadResumeMiddleware = multer({
   storage,
   fileFilter,
@@ -38,4 +38,51 @@ export const uploadResumeMiddleware = multer({
   },
 });
 
+// Candidate Application File Filter (Photo: JPG/JPEG/PNG; Documents: PDF/DOC/DOCX/JPG/PNG)
+const candidateApplicationFileFilter = (req, file, cb) => {
+  const ext = path.extname(file.originalname).toLowerCase();
+  
+  if (file.fieldname === 'photo') {
+    const allowedPhotoMimes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
+    const allowedPhotoExts = ['.jpg', '.jpeg', '.png', '.webp'];
+
+    if (allowedPhotoMimes.includes(file.mimetype) || allowedPhotoExts.includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new ApiError(400, 'Invalid photo format. Only JPG, JPEG, and PNG images are allowed for candidate photo.'), false);
+    }
+  } else if (file.fieldname === 'documents') {
+    const allowedDocMimes = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'image/jpeg',
+      'image/png',
+      'image/jpg',
+    ];
+    const allowedDocExts = ['.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png'];
+
+    if (allowedDocMimes.includes(file.mimetype) || allowedDocExts.includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new ApiError(400, `Invalid document format for "${file.originalname}". Only PDF, DOC, DOCX, JPG, and PNG are allowed.`), false);
+    }
+  } else {
+    cb(new ApiError(400, `Unexpected file field: ${file.fieldname}`), false);
+  }
+};
+
+// Candidate Application Multi-field Multer Instance
+export const uploadCandidateApplicationMiddleware = multer({
+  storage,
+  fileFilter: candidateApplicationFileFilter,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit per file
+  },
+}).fields([
+  { name: 'photo', maxCount: 1 },
+  { name: 'documents', maxCount: 10 },
+]);
+
 export default uploadResumeMiddleware;
+

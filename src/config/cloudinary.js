@@ -49,13 +49,19 @@ export const verifyCloudinary = async () => {
 
 /**
  * Uploads a file buffer directly to Cloudinary using streamifier.
- * Folder: jms-group/resumes
  *
  * @param {Buffer} fileBuffer - In-memory file buffer from Multer
  * @param {string} originalName - Original filename
+ * @param {string} folder - Target Cloudinary folder (default: 'jms-group/resumes')
+ * @param {string} resourceType - Resource type ('raw', 'image', 'auto')
  * @returns {Promise<Object>} Cloudinary upload result
  */
-export const uploadToCloudinary = (fileBuffer, originalName) => {
+export const uploadToCloudinary = (
+  fileBuffer,
+  originalName,
+  folder = 'jms-group/resumes',
+  resourceType = 'raw'
+) => {
   return new Promise((resolve, reject) => {
     try {
       configureCloudinary();
@@ -64,14 +70,16 @@ export const uploadToCloudinary = (fileBuffer, originalName) => {
       const baseName = path.basename(originalName, ext).replace(/[^a-zA-Z0-9]/g, '_');
       const uniquePublicId = `${baseName}_${Date.now()}${ext}`;
 
+      const uploadOptions = {
+        folder,
+        resource_type: resourceType,
+        public_id: uniquePublicId,
+        use_filename: true,
+        unique_filename: true,
+      };
+
       const uploadStream = cloudinary.uploader.upload_stream(
-        {
-          folder: 'jms-group/resumes',
-          resource_type: 'raw',
-          public_id: uniquePublicId,
-          use_filename: true,
-          unique_filename: true,
-        },
+        uploadOptions,
         (error, result) => {
           if (error) {
             logger.error(`[Cloudinary Stream Error] ${error.message}`);
@@ -93,18 +101,19 @@ export const uploadToCloudinary = (fileBuffer, originalName) => {
 };
 
 /**
- * Deletes a raw asset from Cloudinary using its public_id.
+ * Deletes an asset from Cloudinary using its public_id.
  *
  * @param {string} publicId - Cloudinary public ID
+ * @param {string} resourceType - Resource type ('raw', 'image', etc.)
  * @returns {Promise<Object>} Deletion result
  */
-export const deleteFromCloudinary = async (publicId) => {
+export const deleteFromCloudinary = async (publicId, resourceType = 'raw') => {
   try {
     if (!publicId) return null;
     configureCloudinary();
 
     const result = await cloudinary.uploader.destroy(publicId, {
-      resource_type: 'raw',
+      resource_type: resourceType,
     });
 
     logger.info(`[Cloudinary Delete] Deleted public_id: ${publicId}`);
