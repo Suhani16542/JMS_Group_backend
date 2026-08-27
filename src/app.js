@@ -11,6 +11,8 @@ import contactRoutes from './routes/contact.routes.js';
 import resumeRoutes from './routes/resume.routes.js';
 import candidateApplicationRoutes from './routes/candidateApplication.routes.js';
 import whatsappRoutes from './routes/whatsapp.routes.js';
+import jobOpeningRoutes from './routes/jobOpening.routes.js';
+import adminAuthRoutes from './routes/adminAuth.routes.js';
 
 const app = express();
 
@@ -104,11 +106,15 @@ app.get('/api/health', (req, res) => {
 });
 
 // Application Feature Routes
+app.use('/api/admin', adminAuthRoutes);
+app.use('/api/auth', adminAuthRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/resume', resumeRoutes);
 app.use('/api/applications', candidateApplicationRoutes);
 app.use('/api/candidate-applications', candidateApplicationRoutes);
 app.use('/api/whatsapp', whatsappRoutes);
+app.use('/api/jobs', jobOpeningRoutes);
+app.use('/api/openings', jobOpeningRoutes);
 
 // 404 Route Handler
 app.use((req, res, next) => {

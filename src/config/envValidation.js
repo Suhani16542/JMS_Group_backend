@@ -15,6 +15,8 @@ export const validateEnv = () => {
     'BREVO_API_KEY',
     'FROM_EMAIL',
     'HR_EMAIL',
+    'ADMIN_EMAIL',
+    'ADMIN_PASSWORD',
     'JWT_SECRET',
   ];
 
