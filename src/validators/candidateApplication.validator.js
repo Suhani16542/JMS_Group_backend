@@ -84,10 +84,15 @@ export const validateCandidateApplication = (req, res, next) => {
     errors.push('You must agree to the Terms & Conditions before submitting.');
   }
 
-  // Validate photo file presence in req.files
-  const photoFile = req.files?.photo?.[0];
-  if (!photoFile) {
-    errors.push('Candidate photo is mandatory (JPG, JPEG, PNG up to 5MB).');
+  // Validate digital signature (canvas string, signature url, signature file, or typed signature name)
+  const signatureRaw =
+    req.body.signature ||
+    req.body.signatureUrl ||
+    req.body.candidateSignatureName ||
+    req.files?.signature?.[0];
+
+  if (!signatureRaw || (typeof signatureRaw === 'string' && signatureRaw.trim().length === 0)) {
+    errors.push('Digital signature is required.');
   }
 
   if (errors.length > 0) {

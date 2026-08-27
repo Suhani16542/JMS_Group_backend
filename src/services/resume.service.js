@@ -3,6 +3,7 @@ import Resume from '../models/Resume.js';
 import { uploadToCloudinary, deleteFromCloudinary, getCloudinaryDownloadUrl } from '../config/cloudinary.js';
 import ApiError from '../utils/ApiError.js';
 import { sendResumeNotificationEmail } from './email.service.js';
+import logger from '../utils/logger.js';
 
 /**
  * Resolves standard canonical MIME type from file extension if needed.
@@ -13,6 +14,10 @@ const getCanonicalMimeType = (originalName, mimetype) => {
     '.pdf': 'application/pdf',
     '.doc': 'application/msword',
     '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.png': 'image/png',
+    '.webp': 'image/webp',
   };
   return mimeMap[ext] || mimetype || 'application/octet-stream';
 };
@@ -68,8 +73,10 @@ export const uploadResumeService = async (resumeData, file) => {
     ...fileMetadata,
   });
 
-  // Dispatch background email notification via Brevo SMTP (if configured)
-  sendResumeNotificationEmail(newResume);
+  // Dispatch background HR email notification via Brevo
+  sendResumeNotificationEmail(newResume).catch((hrEmailErr) => {
+    logger.error(`[HR Resume Email Notification Error] ${hrEmailErr.message}`);
+  });
 
   return enrichResumeWithSignedUrls(newResume);
 };

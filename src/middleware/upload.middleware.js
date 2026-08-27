@@ -51,6 +51,15 @@ const candidateApplicationFileFilter = (req, file, cb) => {
     } else {
       cb(new ApiError(400, 'Invalid photo format. Only JPG, JPEG, and PNG images are allowed for candidate photo.'), false);
     }
+  } else if (file.fieldname === 'signature') {
+    const allowedSigMimes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp', 'image/svg+xml'];
+    const allowedSigExts = ['.jpg', '.jpeg', '.png', '.webp', '.svg'];
+
+    if (allowedSigMimes.includes(file.mimetype) || allowedSigExts.includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new ApiError(400, 'Invalid signature image format. Only PNG, JPG, JPEG, or SVG are allowed for signature.'), false);
+    }
   } else if (file.fieldname === 'documents') {
     const allowedDocMimes = [
       'application/pdf',
@@ -81,6 +90,7 @@ export const uploadCandidateApplicationMiddleware = multer({
   },
 }).fields([
   { name: 'photo', maxCount: 1 },
+  { name: 'signature', maxCount: 1 },
   { name: 'documents', maxCount: 10 },
 ]);
 

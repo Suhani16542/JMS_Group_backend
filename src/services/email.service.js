@@ -201,6 +201,7 @@ export const sendCandidateApplicationEmail = async (applicationData) => {
             ` : ''}
             <div style="flex: 1; min-width: 200px;">
               <h3 style="margin: 0 0 6px 0; color: #8B1E5C; font-size: 18px;">${applicationData.fullName}</h3>
+              <p style="margin: 2px 0; font-size: 13px;"><strong>Application ID:</strong> <span style="background-color: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-weight: 700; color: #8B1E5C;">${applicationData.applicationId || applicationData._id}</span></p>
               <p style="margin: 2px 0; font-size: 13px;"><strong>Job Applied For (A):</strong> <span style="color: #2563eb; font-weight: 600;">${applicationData.jobAppliedForA}</span></p>
               ${applicationData.jobAppliedForB ? `<p style="margin: 2px 0; font-size: 13px;"><strong>Job Applied For (B):</strong> ${applicationData.jobAppliedForB}</p>` : ''}
               <p style="margin: 2px 0; font-size: 13px;"><strong>Mobile:</strong> <a href="tel:${applicationData.mobileNumber}" style="color: #059669; text-decoration: none;">${applicationData.mobileNumber}</a></p>
@@ -231,8 +232,8 @@ export const sendCandidateApplicationEmail = async (applicationData) => {
           <!-- Section 3: Professional & CTC -->
           <h4 style="margin: 18px 0 8px; color: #334155; border-bottom: 2px solid #8B1E5C; padding-bottom: 4px; font-size: 15px;">3. Current Employment & Salary Details</h4>
           <table style="width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 16px;">
-            <tr style="background-color: #f8fafc;"><td style="padding: 6px 8px; font-weight: 600; width: 38%;">Current Bank / NBFC:</td><td style="padding: 6px 8px;">${applicationData.currentBankOrNbfc || 'N/A'}</td></tr>
-            <tr><td style="padding: 6px 8px; font-weight: 600;">Current Occupation / Vertical:</td><td style="padding: 6px 8px;">${applicationData.currentVertical || 'N/A'}</td></tr>
+            <tr style="background-color: #f8fafc;"><td style="padding: 6px 8px; font-weight: 600; width: 38%;">Current Company:</td><td style="padding: 6px 8px;">${applicationData.currentCompany || applicationData.currentBankOrNbfc || 'N/A'}</td></tr>
+            <tr><td style="padding: 6px 8px; font-weight: 600;">Current Bank / NBFC:</td><td style="padding: 6px 8px;">${applicationData.currentBankOrNbfc || 'N/A'}</td></tr>
             <tr style="background-color: #f8fafc;"><td style="padding: 6px 8px; font-weight: 600;">Current CTC:</td><td style="padding: 6px 8px;">${applicationData.currentCtc || 'N/A'}</td></tr>
             <tr><td style="padding: 6px 8px; font-weight: 600;">Expected Salary:</td><td style="padding: 6px 8px;">${applicationData.expectedSalary || 'N/A'}</td></tr>
             <tr style="background-color: #f8fafc;"><td style="padding: 6px 8px; font-weight: 600;">Notice Period:</td><td style="padding: 6px 8px;">${applicationData.noticePeriod || 'N/A'}</td></tr>
@@ -251,11 +252,16 @@ export const sendCandidateApplicationEmail = async (applicationData) => {
           <!-- Section 5: Documents & Declarations -->
           <h4 style="margin: 18px 0 8px; color: #334155; border-bottom: 2px solid #8B1E5C; padding-bottom: 4px; font-size: 15px;">5. Uploaded Documents & Declaration</h4>
           <div style="padding: 12px; background-color: #f8fafc; border-radius: 6px; font-size: 13px; margin-bottom: 16px;">
+            ${applicationData.resumeUrl ? `
+              <div style="margin-bottom: 8px;">
+                <strong>Linked Resume:</strong> <a href="${applicationData.resumeUrl}" target="_blank" style="color: #2563eb; text-decoration: underline; font-weight: 600;">View Candidate Resume</a>
+              </div>
+            ` : ''}
             ${docsHtml}
           </div>
 
           <div style="padding: 12px; background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; font-size: 12px; color: #166534;">
-            <p style="margin: 0 0 4px 0;"><strong>Digital Signature:</strong> ${applicationData.candidateSignatureName || applicationData.fullName}</p>
+            <p style="margin: 0 0 4px 0;"><strong>Digital Signature:</strong> ${applicationData.signature || applicationData.signatureUrl || applicationData.candidateSignatureName || applicationData.fullName}</p>
             <p style="margin: 0;"><strong>Terms & Conditions:</strong> Agreed & Accepted (Yes)</p>
           </div>
 

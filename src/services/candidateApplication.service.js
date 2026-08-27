@@ -1,5 +1,6 @@
 import path from 'path';
 import CandidateApplication from '../models/CandidateApplication.js';
+import Resume from '../models/Resume.js';
 import {
   uploadToCloudinary,
   deleteFromCloudinary,
@@ -22,6 +23,7 @@ const getCanonicalMimeType = (originalName, mimetype) => {
     '.jpeg': 'image/jpeg',
     '.png': 'image/png',
     '.webp': 'image/webp',
+    '.svg': 'image/svg+xml',
   };
   return mimeMap[ext] || mimetype || 'application/octet-stream';
 };
@@ -31,7 +33,7 @@ const getCanonicalMimeType = (originalName, mimetype) => {
  */
 const isImageFile = (originalName, mimetype) => {
   const ext = path.extname(originalName).toLowerCase();
-  const imageExts = ['.jpg', '.jpeg', '.png', '.webp', '.gif'];
+  const imageExts = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.svg'];
   return imageExts.includes(ext) || (mimetype && mimetype.startsWith('image/'));
 };
 
@@ -73,31 +75,54 @@ const enrichApplicationWithSignedUrls = (appDoc) => {
  * Creates and uploads a new candidate application.
  *
  * @param {Object} rawBody - Form text fields
- * @param {Object} files - Multer req.files object { photo: [file], documents: [files] }
+ * @param {Object} files - Multer req.files object { photo: [file], signature: [file], documents: [files] }
  */
 export const submitCandidateApplicationService = async (rawBody, files = {}) => {
+  // 1. Process candidate photo if optionally provided (photo is no longer required)
+  let photoAttachment = null;
   const photoFile = files.photo?.[0];
-  if (!photoFile || !photoFile.buffer) {
-    throw new ApiError(400, 'Candidate photo is mandatory (JPG, JPEG, PNG).');
+  if (photoFile && photoFile.buffer) {
+    try {
+      const photoUpload = await uploadToCloudinary(
+        photoFile.buffer,
+        photoFile.originalname,
+        'jms-group/applications/photos',
+        'image'
+      );
+
+      photoAttachment = {
+        url: photoUpload.secure_url,
+        cloudinaryPublicId: photoUpload.public_id,
+        originalFileName: photoFile.originalname,
+        mimeType: getCanonicalMimeType(photoFile.originalname, photoFile.mimetype),
+        fileSize: photoFile.size,
+      };
+    } catch (photoErr) {
+      logger.warn(`[Photo Upload Optional] Could not upload photo: ${photoErr.message}`);
+    }
   }
 
-  // 1. Upload candidate photo to Cloudinary
-  const photoUpload = await uploadToCloudinary(
-    photoFile.buffer,
-    photoFile.originalname,
-    'jms-group/applications/photos',
-    'image'
-  );
+  // 2. Process digital signature (file upload, base64, or text string)
+  let signatureUrl = rawBody.signatureUrl || rawBody.signature || '';
+  let signatureValue = rawBody.signature || rawBody.signatureUrl || rawBody.candidateSignatureName || '';
+  const signatureFile = files.signature?.[0];
 
-  const photoAttachment = {
-    url: photoUpload.secure_url,
-    cloudinaryPublicId: photoUpload.public_id,
-    originalFileName: photoFile.originalname,
-    mimeType: getCanonicalMimeType(photoFile.originalname, photoFile.mimetype),
-    fileSize: photoFile.size,
-  };
+  if (signatureFile && signatureFile.buffer) {
+    try {
+      const sigUpload = await uploadToCloudinary(
+        signatureFile.buffer,
+        signatureFile.originalname,
+        'jms-group/applications/signatures',
+        'image'
+      );
+      signatureUrl = sigUpload.secure_url;
+      signatureValue = sigUpload.secure_url;
+    } catch (sigErr) {
+      logger.warn(`[Signature Upload] Could not upload signature file to Cloudinary: ${sigErr.message}`);
+    }
+  }
 
-  // 2. Upload supporting documents to Cloudinary (if any)
+  // 3. Upload supporting documents to Cloudinary (if any)
   const docFiles = files.documents || [];
   const uploadedDocuments = [];
 
@@ -125,7 +150,43 @@ export const submitCandidateApplicationService = async (rawBody, files = {}) => 
     });
   }
 
-  // 3. Prepare schema data
+  // 4. Resume + Application Linking
+  let linkedResumeId = null;
+  let linkedResumeUrl = rawBody.resumeUrl || '';
+
+  if (rawBody.resumeId) {
+    try {
+      const existingResume = await Resume.findById(rawBody.resumeId);
+      if (existingResume) {
+        linkedResumeId = existingResume._id;
+        linkedResumeUrl = existingResume.resumeUrl || linkedResumeUrl;
+      }
+    } catch (err) {
+      logger.warn(`[Resume Link Warning] Invalid resumeId passed: ${rawBody.resumeId}`);
+    }
+  }
+
+  // If resumeId was not passed explicitly, attempt relationship lookup by email or phone
+  if (!linkedResumeId && (rawBody.email || rawBody.mobileNumber)) {
+    try {
+      const searchCriteria = [];
+      if (rawBody.email) searchCriteria.push({ email: rawBody.email.trim().toLowerCase() });
+      if (rawBody.mobileNumber) searchCriteria.push({ phone: rawBody.mobileNumber.trim() });
+
+      const matchedResume = await Resume.findOne({ $or: searchCriteria }).sort({ createdAt: -1 });
+      if (matchedResume) {
+        linkedResumeId = matchedResume._id;
+        if (!linkedResumeUrl) {
+          linkedResumeUrl = matchedResume.resumeUrl;
+        }
+        logger.info(`[Resume Link] Automatically linked application to Resume ID: ${matchedResume._id}`);
+      }
+    } catch (matchErr) {
+      logger.warn(`[Resume Link Match Error] ${matchErr.message}`);
+    }
+  }
+
+  // 5. Prepare schema data
   const termsAccepted = rawBody.termsAccepted === true || rawBody.termsAccepted === 'true';
 
   const applicationPayload = {
@@ -147,25 +208,41 @@ export const submitCandidateApplicationService = async (rawBody, files = {}) => 
     currentCtc: rawBody.currentCtc || '',
     expectedSalary: rawBody.expectedSalary || '',
     noticePeriod: rawBody.noticePeriod || '',
+    currentCompany: rawBody.currentCompany || rawBody.currentBankOrNbfc || '',
     currentBankOrNbfc: rawBody.currentBankOrNbfc || '',
-    currentVertical: rawBody.currentVertical || '',
     fatherOrHusbandOccupation: rawBody.fatherOrHusbandOccupation || '',
     motherOccupation: rawBody.motherOccupation || '',
     siblings: rawBody.siblings || '',
     siblingsOccupation: rawBody.siblingsOccupation || '',
     referenceNameAndNo: rawBody.referenceNameAndNo || '',
+    resumeId: linkedResumeId,
+    resumeUrl: linkedResumeUrl,
     photo: photoAttachment,
     documents: uploadedDocuments,
+    signature: signatureValue,
+    signatureUrl,
     candidateSignatureName: rawBody.candidateSignatureName || rawBody.fullName,
     termsAccepted,
   };
 
-  // 4. Save to Database
+  // 6. Save to Database (Application is safely persisted first)
   const newApplication = await CandidateApplication.create(applicationPayload);
-  logger.success(`[Candidate Application] Saved application ID: ${newApplication._id} for ${newApplication.fullName}`);
+  logger.success(`[Candidate Application] Successfully saved application ID: ${newApplication.applicationId || newApplication._id} for ${newApplication.fullName}`);
 
-  // 5. Send notification email via Brevo REST API
-  sendCandidateApplicationEmail(newApplication);
+  // Populate resume if linked for richer notification payload
+  let populatedApp = newApplication;
+  if (newApplication.resumeId) {
+    try {
+      populatedApp = await CandidateApplication.findById(newApplication._id).populate('resumeId');
+    } catch (e) {
+      populatedApp = newApplication;
+    }
+  }
+
+  // 7. Non-blocking Email Notification via Brevo
+  sendCandidateApplicationEmail(populatedApp).catch((emailErr) => {
+    logger.error(`[Email Notification Async Error] ${emailErr.message}`);
+  });
 
   return enrichApplicationWithSignedUrls(newApplication);
 };

@@ -10,6 +10,7 @@ import errorHandler from './middleware/errorHandler.js';
 import contactRoutes from './routes/contact.routes.js';
 import resumeRoutes from './routes/resume.routes.js';
 import candidateApplicationRoutes from './routes/candidateApplication.routes.js';
+import whatsappRoutes from './routes/whatsapp.routes.js';
 
 const app = express();
 
@@ -107,6 +108,7 @@ app.use('/api/contact', contactRoutes);
 app.use('/api/resume', resumeRoutes);
 app.use('/api/applications', candidateApplicationRoutes);
 app.use('/api/candidate-applications', candidateApplicationRoutes);
+app.use('/api/whatsapp', whatsappRoutes);
 
 // 404 Route Handler
 app.use((req, res, next) => {

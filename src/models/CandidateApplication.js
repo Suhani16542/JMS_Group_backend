@@ -133,7 +133,7 @@ const candidateApplicationSchema = new mongoose.Schema(
       default: '',
       trim: true,
     },
-    currentVertical: {
+    currentCompany: {
       type: String,
       default: '',
       trim: true,
@@ -166,10 +166,21 @@ const candidateApplicationSchema = new mongoose.Schema(
       trim: true,
     },
 
-    // 5. Uploaded Assets
+    // 5. Uploaded Assets & Linked Resume
+    resumeId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Resume',
+      default: null,
+    },
+    resumeUrl: {
+      type: String,
+      default: '',
+      trim: true,
+    },
     photo: {
       type: fileAttachmentSchema,
-      required: [true, 'Candidate photo is required'],
+      required: false,
+      default: null,
     },
     documents: {
       type: [fileAttachmentSchema],
@@ -177,6 +188,16 @@ const candidateApplicationSchema = new mongoose.Schema(
     },
 
     // 6. Signature & Terms Consent
+    signature: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    signatureUrl: {
+      type: String,
+      default: '',
+      trim: true,
+    },
     candidateSignatureName: {
       type: String,
       default: '',
@@ -189,6 +210,13 @@ const candidateApplicationSchema = new mongoose.Schema(
     },
 
     // 7. Status & Tracking
+    applicationId: {
+      type: String,
+      unique: true,
+      sparse: true,
+      index: true,
+      trim: true,
+    },
     status: {
       type: String,
       enum: {
@@ -202,6 +230,16 @@ const candidateApplicationSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
+// Pre-save hook to generate unique human-readable applicationId if not present
+candidateApplicationSchema.pre('save', function (next) {
+  if (!this.applicationId) {
+    const timestamp = Date.now().toString(36).toUpperCase();
+    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+    this.applicationId = `JMS-APP-${timestamp}-${randomSuffix}`;
+  }
+  next();
+});
 
 const CandidateApplication = mongoose.model('CandidateApplication', candidateApplicationSchema);
 
