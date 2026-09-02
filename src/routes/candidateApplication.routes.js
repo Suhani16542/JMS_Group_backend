@@ -11,10 +11,11 @@ import {
   validateCandidateApplication,
   validateUpdateApplicationStatus,
 } from '../validators/candidateApplication.validator.js';
+import adminAuthMiddleware from '../middleware/adminAuth.middleware.js';
 
 const router = Router();
 
-// POST /api/applications - Submit candidate application with photo & documents
+// POST /api/candidateapplications (and /api/applications) - Submit candidate application (Public)
 router.post(
   '/',
   uploadCandidateApplicationMiddleware,
@@ -22,16 +23,16 @@ router.post(
   submitCandidateApplication
 );
 
-// GET /api/applications - List all candidate applications
-router.get('/', getAllCandidateApplications);
+// GET /api/candidateapplications - List all candidate applications (Admin / Dashboard)
+router.get('/', adminAuthMiddleware, getAllCandidateApplications);
 
-// GET /api/applications/:id - Get single application by ID
-router.get('/:id', getSingleCandidateApplication);
+// GET /api/candidateapplications/:id - Get single application by ID (Admin / Dashboard)
+router.get('/:id', adminAuthMiddleware, getSingleCandidateApplication);
 
-// PATCH /api/applications/:id - Update application status
-router.patch('/:id', validateUpdateApplicationStatus, updateCandidateApplicationStatus);
+// PATCH /api/candidateapplications/:id - Update application status (Admin / Dashboard)
+router.patch('/:id', adminAuthMiddleware, validateUpdateApplicationStatus, updateCandidateApplicationStatus);
 
-// DELETE /api/applications/:id - Delete application by ID
-router.delete('/:id', deleteCandidateApplication);
+// DELETE /api/candidateapplications/:id - Delete application by ID (Admin / Dashboard)
+router.delete('/:id', adminAuthMiddleware, deleteCandidateApplication);
 
 export default router;

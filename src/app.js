@@ -13,6 +13,7 @@ import candidateApplicationRoutes from './routes/candidateApplication.routes.js'
 import whatsappRoutes from './routes/whatsapp.routes.js';
 import jobOpeningRoutes from './routes/jobOpening.routes.js';
 import adminAuthRoutes from './routes/adminAuth.routes.js';
+import dashboardRoutes from './routes/dashboard.routes.js';
 
 const app = express();
 
@@ -106,15 +107,30 @@ app.get('/api/health', (req, res) => {
 });
 
 // Application Feature Routes
+app.use('/api/admin/dashboard', dashboardRoutes);
 app.use('/api/admin', adminAuthRoutes);
 app.use('/api/auth', adminAuthRoutes);
-app.use('/api/contact', contactRoutes);
-app.use('/api/resume', resumeRoutes);
-app.use('/api/applications', candidateApplicationRoutes);
+
+// Candidate Applications (Exact requested endpoint + backward-compatible aliases)
+app.use('/api/candidateapplications', candidateApplicationRoutes);
 app.use('/api/candidate-applications', candidateApplicationRoutes);
-app.use('/api/whatsapp', whatsappRoutes);
+app.use('/api/applications', candidateApplicationRoutes);
+
+// Contacts (Exact requested endpoint + backward-compatible alias)
+app.use('/api/contacts', contactRoutes);
+app.use('/api/contact', contactRoutes);
+
+// Resumes (Exact requested endpoint + backward-compatible alias)
+app.use('/api/resumes', resumeRoutes);
+app.use('/api/resume', resumeRoutes);
+
+// Job Openings (Exact requested endpoint + backward-compatible aliases)
+app.use('/api/jobopenings', jobOpeningRoutes);
 app.use('/api/jobs', jobOpeningRoutes);
 app.use('/api/openings', jobOpeningRoutes);
+
+// WhatsApp Webhook & Flows
+app.use('/api/whatsapp', whatsappRoutes);
 
 // 404 Route Handler
 app.use((req, res, next) => {

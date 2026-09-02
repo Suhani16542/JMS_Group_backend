@@ -21,12 +21,48 @@ export const createContactService = async (contactData) => {
 };
 
 /**
- * Fetches all contact submissions.
- * @param {Object} queryParams - Query parameters for pagination/filtering
+ * Fetches all contact submissions with search, filtering, and pagination.
+ * @param {Object} queryParams - Query parameters (search, status, page, limit)
  */
 export const getAllContactsService = async (queryParams = {}) => {
-  const contacts = await Contact.find(queryParams).sort({ createdAt: -1 });
-  return contacts;
+  const { search, status, page = 1, limit = 20 } = queryParams;
+
+  const filter = {};
+
+  if (status && typeof status === 'string' && status.trim()) {
+    filter.status = { $regex: new RegExp(`^${status.trim()}$`, 'i') };
+  }
+
+  if (search && typeof search === 'string' && search.trim()) {
+    const searchRegex = new RegExp(search.trim(), 'i');
+    filter.$or = [
+      { fullName: searchRegex },
+      { email: searchRegex },
+      { phone: searchRegex },
+      { subject: searchRegex },
+      { message: searchRegex },
+    ];
+  }
+
+  const pageNum = Math.max(1, parseInt(page, 10) || 1);
+  const limitNum = Math.max(1, Math.min(100, parseInt(limit, 10) || 20));
+  const skip = (pageNum - 1) * limitNum;
+
+  const [total, contacts] = await Promise.all([
+    Contact.countDocuments(filter),
+    Contact.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNum),
+  ]);
+
+  return {
+    contacts,
+    total,
+    page: pageNum,
+    limit: limitNum,
+    totalPages: Math.ceil(total / limitNum) || 1,
+  };
 };
 
 /**

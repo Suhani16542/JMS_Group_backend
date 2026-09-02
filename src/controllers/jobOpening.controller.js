@@ -20,6 +20,27 @@ export const createJobOpening = asyncHandler(async (req, res) => {
 });
 
 /**
+ * @desc    Get job openings (Public active jobs, or filtered by status / admin all)
+ * @route   GET /api/jobs, GET /api/jobopenings, GET /api/openings
+ * @access  Public / Admin
+ */
+export const getJobOpenings = asyncHandler(async (req, res) => {
+  if (req.query.status) {
+    const result = await getAllJobOpeningsService(req.query);
+    return ApiResponse.success(res, 200, 'Job openings retrieved successfully', result);
+  }
+
+  const authHeader = req.headers.authorization || req.headers.Authorization;
+  if (authHeader && authHeader.trim().startsWith('Bearer ')) {
+    const result = await getAllJobOpeningsService(req.query);
+    return ApiResponse.success(res, 200, 'All job openings retrieved successfully', result);
+  }
+
+  const result = await getActiveJobOpeningsService(req.query);
+  return ApiResponse.success(res, 200, 'Active job openings retrieved successfully', result);
+});
+
+/**
  * @desc    Get active job openings (Public)
  * @route   GET /api/jobs (or /api/openings)
  * @access  Public
@@ -74,6 +95,7 @@ export const deleteJobOpening = asyncHandler(async (req, res) => {
 
 export default {
   createJobOpening,
+  getJobOpenings,
   getActiveJobOpenings,
   getAllJobOpenings,
   getSingleJobOpening,

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
   createJobOpening,
+  getJobOpenings,
   getActiveJobOpenings,
   getAllJobOpenings,
   getSingleJobOpening,
@@ -15,13 +16,13 @@ import adminAuthMiddleware from '../middleware/adminAuth.middleware.js';
 
 const router = Router();
 
-// GET /api/jobs - Public: Get all active job openings (supports filters: sector, location, experience, search, page, limit)
-router.get('/', getActiveJobOpenings);
+// GET /api/jobopenings (and /api/jobs) - Get job openings (Supports status=Active/Closed, search, sector, location, page, limit)
+router.get('/', getJobOpenings);
 
-// GET /api/jobs/admin/all - Admin: Get all job openings (Active + Closed) with statistics
+// GET /api/jobopenings/admin/all - Admin: Get all job openings (Active + Closed) with statistics
 router.get('/admin/all', adminAuthMiddleware, getAllJobOpenings);
 
-// GET /api/jobs/:id - Public: Get single job opening by ID
+// GET /api/jobopenings/:id - Get single job opening by ID
 router.get('/:id', getSingleJobOpening);
 
 // POST /api/jobs - Admin: Create new monthly job opening

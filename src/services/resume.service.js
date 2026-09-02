@@ -82,12 +82,50 @@ export const uploadResumeService = async (resumeData, file) => {
 };
 
 /**
- * Fetches all uploaded resume submissions.
- * @param {Object} queryParams - Query parameters
+ * Fetches all uploaded resume submissions with search, filtering, and pagination.
+ * @param {Object} queryParams - Query parameters (search, status, page, limit)
  */
 export const getAllResumesService = async (queryParams = {}) => {
-  const resumes = await Resume.find(queryParams).sort({ createdAt: -1 });
-  return resumes.map(enrichResumeWithSignedUrls);
+  const { search, status, page = 1, limit = 20 } = queryParams;
+
+  const filter = {};
+
+  if (status && typeof status === 'string' && status.trim()) {
+    filter.status = { $regex: new RegExp(`^${status.trim()}$`, 'i') };
+  }
+
+  if (search && typeof search === 'string' && search.trim()) {
+    const searchRegex = new RegExp(search.trim(), 'i');
+    filter.$or = [
+      { fullName: searchRegex },
+      { email: searchRegex },
+      { phone: searchRegex },
+      { preferredJobRole: searchRegex },
+      { highestQualification: searchRegex },
+      { referenceName: searchRegex },
+      { referenceNumber: searchRegex },
+    ];
+  }
+
+  const pageNum = Math.max(1, parseInt(page, 10) || 1);
+  const limitNum = Math.max(1, Math.min(100, parseInt(limit, 10) || 20));
+  const skip = (pageNum - 1) * limitNum;
+
+  const [total, resumes] = await Promise.all([
+    Resume.countDocuments(filter),
+    Resume.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNum),
+  ]);
+
+  return {
+    resumes: resumes.map(enrichResumeWithSignedUrls),
+    total,
+    page: pageNum,
+    limit: limitNum,
+    totalPages: Math.ceil(total / limitNum) || 1,
+  };
 };
 
 /**

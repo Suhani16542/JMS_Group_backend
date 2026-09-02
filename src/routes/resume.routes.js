@@ -12,10 +12,11 @@ import {
   validateUploadResume,
   validateUpdateResumeStatus,
 } from '../validators/resume.validator.js';
+import adminAuthMiddleware from '../middleware/adminAuth.middleware.js';
 
 const router = Router();
 
-// POST /api/resume - Upload resume submission
+// POST /api/resumes (and /api/resume) - Upload resume submission (Public)
 router.post(
   '/',
   uploadResumeMiddleware.single('resume'),
@@ -23,19 +24,19 @@ router.post(
   uploadResume
 );
 
-// GET /api/resume - List all resumes
-router.get('/', getAllResumes);
+// GET /api/resumes - List all resumes (Admin / Dashboard)
+router.get('/', adminAuthMiddleware, getAllResumes);
 
-// GET /api/resume/download/:id - Download resume file by ID
-router.get('/download/:id', downloadResume);
+// GET /api/resumes/download/:id - Download resume file by ID (Admin / Dashboard)
+router.get('/download/:id', adminAuthMiddleware, downloadResume);
 
-// GET /api/resume/:id - Get single resume by ID
-router.get('/:id', getSingleResume);
+// GET /api/resumes/:id - Get single resume by ID (Admin / Dashboard)
+router.get('/:id', adminAuthMiddleware, getSingleResume);
 
-// PATCH /api/resume/:id - Update resume status
-router.patch('/:id', validateUpdateResumeStatus, updateResumeStatus);
+// PATCH /api/resumes/:id - Update resume status (Admin / Dashboard)
+router.patch('/:id', adminAuthMiddleware, validateUpdateResumeStatus, updateResumeStatus);
 
-// DELETE /api/resume/:id - Delete resume by ID
-router.delete('/:id', deleteResume);
+// DELETE /api/resumes/:id - Delete resume by ID (Admin / Dashboard)
+router.delete('/:id', adminAuthMiddleware, deleteResume);
 
 export default router;

@@ -10,22 +10,23 @@ import {
   validateCreateContact,
   validateUpdateContactStatus,
 } from '../validators/contact.validator.js';
+import adminAuthMiddleware from '../middleware/adminAuth.middleware.js';
 
 const router = Router();
 
-// POST /api/contact - Submit contact inquiry
+// POST /api/contacts (and /api/contact) - Submit contact inquiry (Public)
 router.post('/', validateCreateContact, createContact);
 
-// GET /api/contact - List all contact inquiries
-router.get('/', getAllContacts);
+// GET /api/contacts - List all contact inquiries (Admin / Dashboard)
+router.get('/', adminAuthMiddleware, getAllContacts);
 
-// GET /api/contact/:id - Get single contact inquiry
-router.get('/:id', getSingleContact);
+// GET /api/contacts/:id - Get single contact inquiry (Admin / Dashboard)
+router.get('/:id', adminAuthMiddleware, getSingleContact);
 
-// PATCH /api/contact/:id - Update contact inquiry status
-router.patch('/:id', validateUpdateContactStatus, updateContactStatus);
+// PATCH /api/contacts/:id - Update contact inquiry status (Admin / Dashboard)
+router.patch('/:id', adminAuthMiddleware, validateUpdateContactStatus, updateContactStatus);
 
-// DELETE /api/contact/:id - Delete contact inquiry
-router.delete('/:id', deleteContact);
+// DELETE /api/contacts/:id - Delete contact inquiry (Admin / Dashboard)
+router.delete('/:id', adminAuthMiddleware, deleteContact);
 
 export default router;

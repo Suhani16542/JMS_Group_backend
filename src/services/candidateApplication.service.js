@@ -248,20 +248,90 @@ export const submitCandidateApplicationService = async (rawBody, files = {}) => 
 };
 
 /**
- * Fetches all candidate application submissions.
- * @param {Object} queryParams - Query parameters
+ * Fetches all candidate application submissions with search, filtering, and pagination.
+ * @param {Object} queryParams - Query parameters (search, status, jobRole, qualification, location, page, limit)
  */
 export const getAllCandidateApplicationsService = async (queryParams = {}) => {
-  const applications = await CandidateApplication.find(queryParams).sort({ createdAt: -1 });
-  return applications.map(enrichApplicationWithSignedUrls);
+  const { search, status, jobRole, qualification, location, page = 1, limit = 20 } = queryParams;
+
+  const filter = {};
+
+  // Status filter (case-insensitive or exact match)
+  if (status && typeof status === 'string' && status.trim()) {
+    filter.status = { $regex: new RegExp(`^${status.trim()}$`, 'i') };
+  }
+
+  // Job role filter
+  if (jobRole && typeof jobRole === 'string' && jobRole.trim()) {
+    const roleRegex = new RegExp(jobRole.trim(), 'i');
+    filter.$or = [{ jobAppliedForA: roleRegex }, { jobAppliedForB: roleRegex }];
+  }
+
+  // Qualification filter
+  if (qualification && typeof qualification === 'string' && qualification.trim()) {
+    const qualRegex = new RegExp(qualification.trim(), 'i');
+    filter.$or = [{ qualification: qualRegex }, { specialization: qualRegex }];
+  }
+
+  // Location filter
+  if (location && typeof location === 'string' && location.trim()) {
+    const locRegex = new RegExp(location.trim(), 'i');
+    filter.$or = [
+      { currentLocation: locRegex },
+      { locationPreferenceA: locRegex },
+      { locationPreferenceB: locRegex },
+    ];
+  }
+
+  // Search filter across candidate name, email, phone, job role, and applicationId
+  if (search && typeof search === 'string' && search.trim()) {
+    const searchRegex = new RegExp(search.trim(), 'i');
+    const searchConditions = [
+      { fullName: searchRegex },
+      { email: searchRegex },
+      { mobileNumber: searchRegex },
+      { alternateNumber: searchRegex },
+      { jobAppliedForA: searchRegex },
+      { jobAppliedForB: searchRegex },
+      { applicationId: searchRegex },
+    ];
+
+    if (filter.$or) {
+      filter.$and = [{ $or: filter.$or }, { $or: searchConditions }];
+      delete filter.$or;
+    } else {
+      filter.$or = searchConditions;
+    }
+  }
+
+  const pageNum = Math.max(1, parseInt(page, 10) || 1);
+  const limitNum = Math.max(1, Math.min(100, parseInt(limit, 10) || 20));
+  const skip = (pageNum - 1) * limitNum;
+
+  const [total, applications] = await Promise.all([
+    CandidateApplication.countDocuments(filter),
+    CandidateApplication.find(filter)
+      .populate('resumeId')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNum),
+  ]);
+
+  return {
+    applications: applications.map(enrichApplicationWithSignedUrls),
+    total,
+    page: pageNum,
+    limit: limitNum,
+    totalPages: Math.ceil(total / limitNum) || 1,
+  };
 };
 
 /**
- * Fetches a single candidate application submission by ID.
+ * Fetches a single candidate application submission by ID with populated resume and signed asset URLs.
  * @param {string} id - Application ID
  */
 export const getSingleCandidateApplicationService = async (id) => {
-  const application = await CandidateApplication.findById(id);
+  const application = await CandidateApplication.findById(id).populate('resumeId');
   if (!application) {
     throw new ApiError(404, 'Candidate application not found');
   }
