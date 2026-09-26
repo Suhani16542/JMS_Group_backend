@@ -6,6 +6,7 @@ import {
   getSingleCandidateApplicationService,
   updateCandidateApplicationStatusService,
   deleteCandidateApplicationService,
+  getCandidateDocumentStreamService,
 } from '../services/candidateApplication.service.js';
 
 /**
@@ -62,10 +63,38 @@ export const deleteCandidateApplication = asyncHandler(async (req, res) => {
   return ApiResponse.success(res, 200, 'Candidate application and files deleted successfully', result);
 });
 
+/**
+ * @desc    Download or view candidate application supporting document by ID and index
+ * @route   GET /api/candidateapplications/document/:id/:index
+ * @access  Public or Admin
+ */
+export const downloadCandidateDocument = asyncHandler(async (req, res) => {
+  const { id, index } = req.params;
+  const mode = req.query.mode || 'view';
+
+  const fileData = await getCandidateDocumentStreamService(id, index, mode);
+
+  const isViewPdf = mode === 'view' && fileData.isPdf;
+  const disposition = isViewPdf ? 'inline' : 'attachment';
+
+  res.setHeader('Content-Type', fileData.mimeType || 'application/octet-stream');
+  res.setHeader(
+    'Content-Disposition',
+    `${disposition}; filename="${encodeURIComponent(fileData.originalFileName)}"`
+  );
+  res.setHeader('Content-Length', fileData.fileSize);
+  res.setHeader('Accept-Ranges', 'bytes');
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+
+  return res.status(200).send(fileData.buffer);
+});
+
 export default {
   submitCandidateApplication,
   getAllCandidateApplications,
   getSingleCandidateApplication,
   updateCandidateApplicationStatus,
   deleteCandidateApplication,
+  downloadCandidateDocument,
 };
+

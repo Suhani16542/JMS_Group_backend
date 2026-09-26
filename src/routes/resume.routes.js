@@ -12,7 +12,7 @@ import {
   validateUploadResume,
   validateUpdateResumeStatus,
 } from '../validators/resume.validator.js';
-import adminAuthMiddleware from '../middleware/adminAuth.middleware.js';
+import adminAuthMiddleware, { optionalAdminAuthMiddleware } from '../middleware/adminAuth.middleware.js';
 
 const router = Router();
 
@@ -27,8 +27,14 @@ router.post(
 // GET /api/resumes - List all resumes (Admin / Dashboard)
 router.get('/', adminAuthMiddleware, getAllResumes);
 
-// GET /api/resumes/download/:id - Download resume file by ID (Admin / Dashboard)
-router.get('/download/:id', adminAuthMiddleware, downloadResume);
+// GET /api/resumes/download/:id - Download/View resume file by ID
+router.get('/download/:id', optionalAdminAuthMiddleware, downloadResume);
+
+// GET /api/resumes/view/:id - Inline view resume file by ID
+router.get('/view/:id', optionalAdminAuthMiddleware, downloadResume);
+
+// GET /api/resumes/file/:id - Direct resume file by ID
+router.get('/file/:id', optionalAdminAuthMiddleware, downloadResume);
 
 // GET /api/resumes/:id - Get single resume by ID (Admin / Dashboard)
 router.get('/:id', adminAuthMiddleware, getSingleResume);
@@ -40,3 +46,4 @@ router.patch('/:id', adminAuthMiddleware, validateUpdateResumeStatus, updateResu
 router.delete('/:id', adminAuthMiddleware, deleteResume);
 
 export default router;
+

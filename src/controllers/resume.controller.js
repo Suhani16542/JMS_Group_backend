@@ -6,7 +6,7 @@ import {
   getSingleResumeService,
   updateResumeStatusService,
   deleteResumeService,
-  downloadResumeService,
+  getResumeFileStreamService,
 } from '../services/resume.service.js';
 
 /**
@@ -64,17 +64,30 @@ export const deleteResume = asyncHandler(async (req, res) => {
 });
 
 /**
- * @desc    Download/Preview resume file by ID (Redirects directly to Cloudinary)
- * @route   GET /api/resume/download/:id
- * @access  Private/Admin
+ * @desc    Download or view resume file by ID directly from backend
+ * @route   GET /api/resumes/download/:id, GET /api/resumes/view/:id
+ * @access  Public or Admin
  */
 export const downloadResume = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { mode } = req.query; // 'view' or 'download'
-  const { downloadUrl } = await downloadResumeService(id, mode);
+  const mode = req.query.mode || (req.path.includes('/view/') ? 'view' : 'download');
 
-  // Redirect client directly to the Cloudinary URL
-  return res.redirect(downloadUrl);
+  const fileData = await getResumeFileStreamService(id, mode);
+
+  const isViewPdf = mode === 'view' && fileData.isPdf;
+  const disposition = isViewPdf ? 'inline' : 'attachment';
+
+  // Set HTTP headers for high-fidelity document delivery
+  res.setHeader('Content-Type', fileData.mimeType || 'application/octet-stream');
+  res.setHeader(
+    'Content-Disposition',
+    `${disposition}; filename="${encodeURIComponent(fileData.originalFileName)}"`
+  );
+  res.setHeader('Content-Length', fileData.fileSize);
+  res.setHeader('Accept-Ranges', 'bytes');
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+
+  return res.status(200).send(fileData.buffer);
 });
 
 export default {
@@ -85,3 +98,4 @@ export default {
   deleteResume,
   downloadResume,
 };
+

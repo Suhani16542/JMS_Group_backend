@@ -1,10 +1,12 @@
 import path from 'path';
+import fs from 'fs';
+import mongoose from 'mongoose';
 import CandidateApplication from '../models/CandidateApplication.js';
 import Resume from '../models/Resume.js';
 import {
   uploadToCloudinary,
   deleteFromCloudinary,
-  getCloudinaryDownloadUrl,
+  fetchCloudinaryAsset,
 } from '../config/cloudinary.js';
 import ApiError from '../utils/ApiError.js';
 import { sendCandidateApplicationEmail } from './email.service.js';
@@ -14,7 +16,7 @@ import logger from '../utils/logger.js';
  * Resolves standard canonical MIME type from file extension.
  */
 const getCanonicalMimeType = (originalName, mimetype) => {
-  const ext = path.extname(originalName).toLowerCase();
+  const ext = path.extname(originalName || '').toLowerCase();
   const mimeMap = {
     '.pdf': 'application/pdf',
     '.doc': 'application/msword',
@@ -32,40 +34,48 @@ const getCanonicalMimeType = (originalName, mimetype) => {
  * Determines whether the file is an image based on extension or mimetype.
  */
 const isImageFile = (originalName, mimetype) => {
-  const ext = path.extname(originalName).toLowerCase();
+  const ext = path.extname(originalName || '').toLowerCase();
   const imageExts = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.svg'];
   return imageExts.includes(ext) || (mimetype && mimetype.startsWith('image/'));
 };
 
 /**
- * Helper to enrich application file attachments with signed download and view URLs.
+ * Helper to enrich application file attachments with reliable view and download URLs.
  */
 const enrichApplicationWithSignedUrls = (appDoc) => {
   if (!appDoc) return null;
   const obj = appDoc.toObject ? appDoc.toObject() : { ...appDoc };
-
-  if (obj.photo && obj.photo.cloudinaryPublicId) {
-    const isImg = isImageFile(obj.photo.originalFileName, obj.photo.mimeType);
-    if (!isImg) {
-      const signedUrl = getCloudinaryDownloadUrl(obj.photo.cloudinaryPublicId, false);
-      if (signedUrl) obj.photo.url = signedUrl;
-    }
-  }
+  const appIdStr = String(obj._id || appDoc._id || '');
+  obj._id = appIdStr;
+  obj.id = appIdStr;
 
   if (Array.isArray(obj.documents)) {
-    obj.documents = obj.documents.map((doc) => {
-      const isImg = isImageFile(doc.originalFileName, doc.mimeType);
-      if (!isImg && doc.cloudinaryPublicId) {
-        const signedUrl = getCloudinaryDownloadUrl(doc.cloudinaryPublicId, false);
-        const signedDownload = getCloudinaryDownloadUrl(doc.cloudinaryPublicId, true);
-        return {
-          ...doc,
-          url: signedUrl || doc.url,
-          downloadUrl: signedDownload || doc.url,
-        };
-      }
-      return doc;
+    obj.documents = obj.documents.map((doc, idx) => {
+      const ext = path.extname(doc.originalFileName || '').toLowerCase();
+      const isPdf = ext === '.pdf' || doc.mimeType === 'application/pdf';
+      return {
+        ...doc,
+        viewUrl: `/api/candidateapplications/document/${appIdStr}/${idx}?mode=view`,
+        downloadUrl: `/api/candidateapplications/document/${appIdStr}/${idx}?mode=download`,
+      };
     });
+  }
+
+  // If application has linked resume, ensure view & download URLs and IDs are clean
+  if (obj.resumeId && typeof obj.resumeId === 'object' && obj.resumeId._id) {
+    const resId = String(obj.resumeId._id);
+    obj.resumeId._id = resId;
+    obj.resumeId.id = resId;
+    obj.resumeId.viewUrl = `/api/resumes/download/${resId}?mode=view`;
+    obj.resumeId.downloadUrl = `/api/resumes/download/${resId}?mode=download`;
+    if (!obj.resumeUrl || obj.resumeUrl.includes('/api/resumes/')) {
+      obj.resumeUrl = `/api/resumes/download/${resId}?mode=view`;
+    }
+  } else if (obj.resumeId && typeof obj.resumeId === 'string') {
+    const resId = String(obj.resumeId);
+    if (!obj.resumeUrl || obj.resumeUrl.includes('/api/resumes/')) {
+      obj.resumeUrl = `/api/resumes/download/${resId}?mode=view`;
+    }
   }
 
   return obj;
@@ -78,7 +88,7 @@ const enrichApplicationWithSignedUrls = (appDoc) => {
  * @param {Object} files - Multer req.files object { photo: [file], signature: [file], documents: [files] }
  */
 export const submitCandidateApplicationService = async (rawBody, files = {}) => {
-  // 1. Process candidate photo if optionally provided (photo is no longer required)
+  // 1. Process candidate photo if optionally provided
   let photoAttachment = null;
   const photoFile = files.photo?.[0];
   if (photoFile && photoFile.buffer) {
@@ -127,22 +137,14 @@ export const submitCandidateApplicationService = async (rawBody, files = {}) => 
   const uploadedDocuments = [];
 
   for (const docFile of docFiles) {
-    const isDocImg = isImageFile(docFile.originalname, docFile.mimetype);
-    const resourceType = isDocImg ? 'image' : 'raw';
-
     const docUpload = await uploadToCloudinary(
       docFile.buffer,
       docFile.originalname,
-      'jms-group/applications/documents',
-      resourceType
+      'jms-group/applications/documents'
     );
 
-    const docSignedUrl = !isDocImg
-      ? getCloudinaryDownloadUrl(docUpload.public_id, false)
-      : null;
-
     uploadedDocuments.push({
-      url: docSignedUrl || docUpload.secure_url,
+      url: docUpload.secure_url,
       cloudinaryPublicId: docUpload.public_id,
       originalFileName: docFile.originalname,
       mimeType: getCanonicalMimeType(docFile.originalname, docFile.mimetype),
@@ -225,7 +227,7 @@ export const submitCandidateApplicationService = async (rawBody, files = {}) => 
     termsAccepted,
   };
 
-  // 6. Save to Database (Application is safely persisted first)
+  // 6. Save to Database
   const newApplication = await CandidateApplication.create(applicationPayload);
   logger.success(`[Candidate Application] Successfully saved application ID: ${newApplication.applicationId || newApplication._id} for ${newApplication.fullName}`);
 
@@ -377,8 +379,7 @@ export const deleteCandidateApplicationService = async (id) => {
   if (Array.isArray(application.documents)) {
     for (const doc of application.documents) {
       if (doc.cloudinaryPublicId) {
-        const isImg = isImageFile(doc.originalFileName, doc.mimeType);
-        await deleteFromCloudinary(doc.cloudinaryPublicId, isImg ? 'image' : 'raw').catch((err) =>
+        await deleteFromCloudinary(doc.cloudinaryPublicId, 'auto').catch((err) =>
           logger.warn(`Document deletion error: ${err.message}`)
         );
       }
@@ -389,10 +390,74 @@ export const deleteCandidateApplicationService = async (id) => {
   return deletedApp;
 };
 
+/**
+ * Retrieves a candidate application supporting document binary buffer for direct backend delivery.
+ *
+ * @param {string} applicationId - Candidate Application ID
+ * @param {number} documentIndex - Index in documents array
+ * @param {string} mode - 'view' or 'download'
+ * @returns {Promise<{ buffer: Buffer, mimeType: string, originalFileName: string, fileSize: number, isPdf: boolean }>}
+ */
+export const getCandidateDocumentStreamService = async (applicationId, documentIndex = 0, mode = 'view') => {
+  if (!applicationId || applicationId === '[object Object]' || typeof applicationId !== 'string' || !mongoose.Types.ObjectId.isValid(applicationId)) {
+    throw new ApiError(400, `Invalid Application ID: ${applicationId}`);
+  }
+  const application = await CandidateApplication.findById(applicationId);
+  if (!application) {
+    throw new ApiError(404, 'Candidate application not found');
+  }
+
+  const index = parseInt(documentIndex, 10) || 0;
+  const doc = application.documents?.[index];
+  if (!doc) {
+    throw new ApiError(404, `Document at index ${index} not found for this candidate application.`);
+  }
+
+  const originalFileName = doc.originalFileName || `document_${index + 1}.pdf`;
+  const ext = path.extname(originalFileName).toLowerCase();
+  const isPdf = ext === '.pdf' || doc.mimeType === 'application/pdf';
+  const canonicalMime = getCanonicalMimeType(originalFileName, doc.mimeType);
+
+  if (doc.cloudinaryPublicId) {
+    const isImg = isImageFile(originalFileName, doc.mimeType);
+    const asset = await fetchCloudinaryAsset(
+      doc.cloudinaryPublicId,
+      isPdf || isImg ? 'image' : 'raw'
+    );
+
+    return {
+      buffer: asset.buffer,
+      mimeType: isPdf ? 'application/pdf' : canonicalMime,
+      originalFileName,
+      fileSize: asset.contentLength,
+      isPdf,
+    };
+  }
+
+  if (doc.url && doc.url.startsWith('http')) {
+    const resp = await fetch(doc.url);
+    if (resp.ok) {
+      const arrayBuf = await resp.arrayBuffer();
+      const buffer = Buffer.from(arrayBuf);
+      return {
+        buffer,
+        mimeType: isPdf ? 'application/pdf' : canonicalMime,
+        originalFileName,
+        fileSize: buffer.length,
+        isPdf,
+      };
+    }
+  }
+
+  throw new ApiError(404, 'Candidate document binary could not be located.');
+};
+
 export default {
   submitCandidateApplicationService,
   getAllCandidateApplicationsService,
   getSingleCandidateApplicationService,
   updateCandidateApplicationStatusService,
   deleteCandidateApplicationService,
+  getCandidateDocumentStreamService,
 };
+

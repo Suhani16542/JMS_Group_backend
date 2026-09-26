@@ -4,22 +4,32 @@ import logger from '../utils/logger.js';
 
 /**
  * Admin Authentication Middleware
- * Protects admin/management routes via Bearer JWT.
+ * Protects admin/management routes via Bearer JWT, query token, or cookie.
  */
 export const adminAuthMiddleware = (req, res, next) => {
   try {
+    let token = null;
+
     const authHeader = req.headers.authorization || req.headers.Authorization;
-
-    if (!authHeader || typeof authHeader !== 'string') {
-      throw new ApiError(401, 'Unauthorized: Authorization token is required');
+    if (authHeader && typeof authHeader === 'string') {
+      const parts = authHeader.trim().split(' ');
+      if (parts.length === 2 && parts[0] === 'Bearer') {
+        token = parts[1];
+      }
     }
 
-    const parts = authHeader.trim().split(' ');
-    if (parts.length !== 2 || parts[0] !== 'Bearer') {
-      throw new ApiError(401, 'Unauthorized: Invalid authorization format. Format must be: Bearer <token>');
+    if (!token && req.query?.token) {
+      token = req.query.token;
     }
 
-    const token = parts[1];
+    if (!token && req.cookies?.token) {
+      token = req.cookies.token;
+    }
+
+    if (!token && req.cookies?.adminToken) {
+      token = req.cookies.adminToken;
+    }
+
     if (!token) {
       throw new ApiError(401, 'Unauthorized: Authorization token is required');
     }
@@ -53,4 +63,33 @@ export const adminAuthMiddleware = (req, res, next) => {
   }
 };
 
+/**
+ * Optional Admin Auth Middleware for document viewing/downloading.
+ * Authenticates if a token is present, but permits access to public delivery.
+ */
+export const optionalAdminAuthMiddleware = (req, res, next) => {
+  try {
+    let token = null;
+    const authHeader = req.headers.authorization || req.headers.Authorization;
+    if (authHeader && typeof authHeader === 'string') {
+      const parts = authHeader.trim().split(' ');
+      if (parts.length === 2 && parts[0] === 'Bearer') {
+        token = parts[1];
+      }
+    }
+    if (!token && req.query?.token) token = req.query.token;
+    if (!token && req.cookies?.token) token = req.cookies.token;
+    if (!token && req.cookies?.adminToken) token = req.cookies.adminToken;
+
+    if (token && process.env.JWT_SECRET) {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      req.admin = { email: decoded.email, role: decoded.role || 'admin' };
+    }
+  } catch (_) {
+    // Non-blocking for optional auth
+  }
+  next();
+};
+
 export default adminAuthMiddleware;
+

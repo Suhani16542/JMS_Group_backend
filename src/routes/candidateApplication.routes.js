@@ -5,13 +5,14 @@ import {
   getSingleCandidateApplication,
   updateCandidateApplicationStatus,
   deleteCandidateApplication,
+  downloadCandidateDocument,
 } from '../controllers/candidateApplication.controller.js';
 import { uploadCandidateApplicationMiddleware } from '../middleware/upload.middleware.js';
 import {
   validateCandidateApplication,
   validateUpdateApplicationStatus,
 } from '../validators/candidateApplication.validator.js';
-import adminAuthMiddleware from '../middleware/adminAuth.middleware.js';
+import adminAuthMiddleware, { optionalAdminAuthMiddleware } from '../middleware/adminAuth.middleware.js';
 
 const router = Router();
 
@@ -22,6 +23,9 @@ router.post(
   validateCandidateApplication,
   submitCandidateApplication
 );
+
+// GET /api/candidateapplications/document/:id/:index - View or download candidate application document
+router.get('/document/:id/:index', optionalAdminAuthMiddleware, downloadCandidateDocument);
 
 // GET /api/candidateapplications - List all candidate applications (Admin / Dashboard)
 router.get('/', adminAuthMiddleware, getAllCandidateApplications);
@@ -36,3 +40,4 @@ router.patch('/:id', adminAuthMiddleware, validateUpdateApplicationStatus, updat
 router.delete('/:id', adminAuthMiddleware, deleteCandidateApplication);
 
 export default router;
+
